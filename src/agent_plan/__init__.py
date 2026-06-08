@@ -104,12 +104,25 @@ class Plan:
         return self
 
     def result(self, step_id: str) -> Any:
-        """Return the result of a completed step."""
+        """Return the result of a completed step.
+
+        For steps that have not completed successfully (e.g. ``FAILED`` or
+        ``SKIPPED``) the stored result is ``None``. Use :meth:`status` or
+        :meth:`error` to distinguish a real ``None`` result from a failure.
+        """
         return self._get(step_id).result
 
     def status(self, step_id: str) -> StepStatus:
         """Return the current status of a step."""
         return self._get(step_id).status
+
+    def error(self, step_id: str) -> Exception | None:
+        """Return the exception raised by a failed step, or ``None``.
+
+        The exception captured when a step raises during :meth:`run` is stored
+        on the step; this accessor exposes it for inspection and logging.
+        """
+        return self._get(step_id).error
 
     def all_done(self) -> bool:
         return all(
@@ -151,20 +164,20 @@ class Plan:
                 self._skip_dependents(step.id)
 
     def _validate(self) -> None:
-        """Detect cycles via DFS."""
+        """Detect unknown dependencies and cycles via DFS."""
         visited: set[str] = set()
         in_stack: set[str] = set()
 
         def dfs(node: str) -> None:
             visited.add(node)
             in_stack.add(node)
-            for dep in self._steps.get(node, Step(node, lambda: None)).deps:
+            for dep in self._steps[node].deps:
                 if dep not in self._steps:
                     raise PlanError(f"Step '{node}' depends on unknown step '{dep}'")
+                if dep in in_stack:
+                    raise PlanError(f"Circular dependency detected: {node} → {dep}")
                 if dep not in visited:
                     dfs(dep)
-                elif dep in in_stack:
-                    raise PlanError(f"Circular dependency detected: {node} → {dep}")
             in_stack.discard(node)
 
         for step_id in self._steps:
