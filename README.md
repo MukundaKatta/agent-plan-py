@@ -51,19 +51,57 @@ if plan.failed_steps():
 print(plan.summary())   # {"fetch": "done", "parse": "failed", "save": "skipped"}
 ```
 
+## Inspecting failures
+
+When a step raises, the exception is captured and can be retrieved with
+`error()` for logging or re-raising:
+
+```python
+plan = Plan()
+plan.add_step("bad", lambda: 1 / 0)
+plan.run()
+
+print(plan.status("bad"))   # StepStatus.FAILED
+print(plan.error("bad"))    # ZeroDivisionError('division by zero')
+```
+
+`result()` returns `None` for steps that did not complete successfully, so use
+`status()` or `error()` to tell a real `None` result apart from a failure.
+
 ## API
 
 ```python
 Plan()
-  .add_step(id, fn, deps=None, args=None) -> Plan   # chainable
-  .run(context=None) -> Plan
-  .result(step_id) -> Any
+  .add_step(step_id, fn, deps=None, args=None) -> Plan   # chainable
+  .run(context=None) -> Plan                             # chainable
+  .result(step_id) -> Any                                # None if not DONE
   .status(step_id) -> StepStatus
-  .all_done() -> bool
+  .error(step_id) -> Exception | None                    # set when a step FAILED
+  .all_done() -> bool                                    # all steps terminal
   .failed_steps() -> list[str]
-  .summary() -> dict[str, str]
+  .summary() -> dict[str, str]                           # {step_id: status.value}
 
 StepStatus: PENDING | READY | RUNNING | DONE | FAILED | SKIPPED
 ```
 
+Unknown step ids passed to `result()`, `status()`, or `error()` raise
+`PlanError`. Cycles and references to undefined dependencies are detected by
+`run()` and also raise `PlanError`.
+
+## Development
+
+The library has **zero runtime dependencies**, and the test suite uses only the
+Python standard library (`unittest`) — no pytest or other tooling required:
+
+```bash
+python3 -m unittest discover -s tests
+```
+
 ## Zero dependencies
+
+`agent-plan-py` is a single pure-Python module with no third-party runtime
+requirements. It supports Python 3.9+ and ships type hints (PEP 561 `py.typed`).
+
+## License
+
+MIT
