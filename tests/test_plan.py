@@ -6,6 +6,7 @@ from agent_plan import Plan, StepStatus, PlanError
 # Basic execution
 # ---------------------------------------------------------------------------
 
+
 def test_single_step_runs():
     plan = Plan()
     plan.add_step("a", lambda: 42)
@@ -33,6 +34,7 @@ def test_chain_three_steps():
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
+
 
 def test_multiple_deps():
     plan = Plan()
@@ -71,6 +73,7 @@ def test_context_passed_to_steps():
 # Status tracking
 # ---------------------------------------------------------------------------
 
+
 def test_status_done_after_run():
     plan = Plan()
     plan.add_step("a", lambda: 1)
@@ -97,6 +100,7 @@ def test_summary_all_done():
 # ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------
+
 
 def test_failed_step_status():
     plan = Plan()
@@ -142,6 +146,7 @@ def test_failed_steps_list():
 # Chaining
 # ---------------------------------------------------------------------------
 
+
 def test_add_step_returns_plan():
     plan = Plan()
     result = plan.add_step("a", lambda: 1)
@@ -149,11 +154,7 @@ def test_add_step_returns_plan():
 
 
 def test_method_chaining():
-    plan = (
-        Plan()
-        .add_step("a", lambda: 2)
-        .add_step("b", lambda a: a * 3, deps=["a"])
-    )
+    plan = Plan().add_step("a", lambda: 2).add_step("b", lambda a: a * 3, deps=["a"])
     plan.run()
     assert plan.result("b") == 6
 
@@ -161,6 +162,7 @@ def test_method_chaining():
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
+
 
 def test_cycle_detection():
     plan = Plan()
@@ -181,6 +183,7 @@ def test_unknown_dependency():
 # Edge cases
 # ---------------------------------------------------------------------------
 
+
 def test_empty_plan_runs_cleanly():
     plan = Plan()
     plan.run()
@@ -193,3 +196,34 @@ def test_run_twice_idempotent():
     plan.run()
     plan.run()
     assert plan.result("a") == 99
+
+
+def test_args_override_dependency_result():
+    plan = Plan()
+    plan.add_step("dep", lambda: 1)
+    plan.add_step("use", lambda dep: dep, deps=["dep"], args={"dep": 100})
+    plan.run()
+    assert plan.result("use") == 100
+
+
+def test_result_unknown_step_raises_plan_error():
+    plan = Plan()
+    plan.add_step("a", lambda: 1)
+    plan.run()
+    with pytest.raises(PlanError, match="Unknown step"):
+        plan.result("missing")
+
+
+def test_status_unknown_step_raises_plan_error():
+    plan = Plan()
+    plan.run()
+    with pytest.raises(PlanError, match="Unknown step"):
+        plan.status("missing")
+
+
+def test_summary_reflects_failed_and_skipped():
+    plan = Plan()
+    plan.add_step("root", lambda: 1 / 0)
+    plan.add_step("child", lambda root: root, deps=["root"])
+    plan.run()
+    assert plan.summary() == {"root": "failed", "child": "skipped"}

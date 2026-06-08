@@ -86,7 +86,9 @@ class Plan:
 
             for step in ready:
                 step.status = StepStatus.RUNNING
-                dep_results = {dep_id: self._steps[dep_id].result for dep_id in step.deps}
+                dep_results = {
+                    dep_id: self._steps[dep_id].result for dep_id in step.deps
+                }
                 kwargs = {**ctx, **dep_results, **step.args}
                 try:
                     step.result = step.fn(**kwargs)
@@ -103,10 +105,11 @@ class Plan:
 
     def result(self, step_id: str) -> Any:
         """Return the result of a completed step."""
-        return self._steps[step_id].result
+        return self._get(step_id).result
 
     def status(self, step_id: str) -> StepStatus:
-        return self._steps[step_id].status
+        """Return the current status of a step."""
+        return self._get(step_id).status
 
     def all_done(self) -> bool:
         return all(
@@ -123,6 +126,12 @@ class Plan:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _get(self, step_id: str) -> Step:
+        try:
+            return self._steps[step_id]
+        except KeyError:
+            raise PlanError(f"Unknown step '{step_id}'") from None
 
     def _refresh_ready(self) -> None:
         for step in self._steps.values():
